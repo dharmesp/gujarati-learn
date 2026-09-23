@@ -1,0 +1,17 @@
+{
+  "name": "Gujarati Match & Learn",
+  "short_name": "Gujarati Learn",
+  "description": "Learn Gujarati letters, Barakhadi and numbers by matching.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#EAF6FF",
+  "theme_color": "#B9E0FF",
+  "lang": "en",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
