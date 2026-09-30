@@ -164,6 +164,27 @@ button:focus-visible { outline: 4px solid var(--kiteblue); outline-offset: 3px; 
   70% { transform: translateY(-8px) rotate(5deg); }
   100% { transform: none; }
 }
+/* back side of the kite (word games): turns over to show 🐎 Horse */
+.kite-back {
+  position: relative; z-index: 1;
+  display: none; flex-direction: column; align-items: center;
+  line-height: 1; text-align: center; color: var(--ink);
+  transform: translateY(4%);
+  text-shadow: 0 0 12px rgba(255, 255, 255, .9), 0 0 3px rgba(255, 255, 255, .9);
+}
+.kite-back-pic { font-size: calc(var(--k) * .24); line-height: 1.1; }
+.kite-back-en { font-size: calc(var(--k) * .2); font-weight: 800; }
+.kite-back-en.len-mid { font-size: calc(var(--k) * .16); }
+.kite-back-en.len-long { font-size: calc(var(--k) * .12); }
+.kite.show-back .kite-glyph { display: none; }
+.kite.show-back .kite-back { display: flex; }
+.kite-body.turning { animation: kite-turn .6s ease-in-out; }
+@keyframes kite-turn {
+  0% { transform: perspective(600px) rotateY(0); }
+  50% { transform: perspective(600px) rotateY(90deg); }
+  100% { transform: perspective(600px) rotateY(0); }
+}
+
 .kite.enter { animation: kite-enter .45s ease-out; }
 @keyframes kite-enter {
   from { transform: translate(-24px, 16px) rotate(-10deg) scale(.9); }
@@ -417,6 +438,9 @@ button:focus-visible { outline: 4px solid var(--kiteblue); outline-offset: 3px; 
 }
 .answer.is-correct::after { content: "✓"; position: absolute; top: 6px; right: 12px; font-size: 1.3rem; }
 .answers.done .answer:not(.is-correct) { opacity: .45; }
+/* word games: each sound chunk lights up while it is spoken (Koo → ta → ro) */
+.syl { display: inline-block; line-height: 1; padding: 0 3px; border-radius: 8px; }
+.syl.now { background: var(--yellow-bg); box-shadow: 0 0 0 2px var(--yellow-edge); color: var(--ink); }
 
 @keyframes shake { 20%, 60% { transform: translateX(-7px); } 40%, 80% { transform: translateX(7px); } }
 @keyframes pop { 50% { transform: scale(1.08); } }
@@ -520,6 +544,9 @@ button:focus-visible { outline: 4px solid var(--kiteblue); outline-offset: 3px; 
 }
 .m-cell .gu { font-size: 1.7rem; font-weight: 700; }
 .m-cell small { font-size: .85rem; font-weight: 700; color: var(--ink-soft); }
+/* word games (animals ...): whole words need wider cells */
+.mastery-grid.is-words { grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); }
+.mastery-grid.is-words .m-cell .gu { font-size: 1.4rem; }
 .m-cell.learning { background: var(--yellow-bg); border: 2px solid var(--yellow-edge); }
 .m-cell.mastered { background: var(--green-bg); border: 2px solid var(--green-edge); }
 

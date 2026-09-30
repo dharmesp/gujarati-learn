@@ -158,6 +158,100 @@ function makeBarakhadi(consonant) {
   });
 }
 
+/* ---------- Vocabulary (animals, birds ... later fruits, plants, objects) ---------- */
+/* Every WORD looks like this:
+     {
+       gujarati:      "કૂતરો",              // shown big, inside the kite
+       pronunciation: "Koo-ta-ro",          // the answer choice the child picks (keep the hyphens!)
+       syllables:     ["Koo", "ta", "ro"],  // spoken and highlighted one by one after a correct answer
+       english:       "Dog",                // revealed only AFTER the right pronunciation is picked
+       category:      "domestic",           // must be a key of the category list (e.g. ANIMAL_CATEGORIES)
+       pic:           "🐕"                  // (optional) picture shown with the English meaning
+     }
+   The syllables are written by hand on purpose. Joined with "-" they must
+   spell the pronunciation exactly (a warning appears in the console if not).
+
+   To add more words: add lines to the list below.
+   To add a new category (insects, fruits ...): add it to the category list,
+   then add words with that category. Steps and mixes are made automatically. */
+
+const ANIMAL_CATEGORIES = {
+  domestic: "Domestic animals",
+  wild:     "Wild animals",
+  birds:    "Birds"
+};
+
+const ANIMALS = [
+  /* Domestic animals (પાલતુ પ્રાણીઓ) */
+  { gujarati: "કૂતરો",  pronunciation: "Koo-ta-ro",  syllables: ["Koo", "ta", "ro"],  english: "Dog",        category: "domestic", pic: "🐕" },
+  { gujarati: "બિલાડી", pronunciation: "Bi-laa-di",  syllables: ["Bi", "laa", "di"],  english: "Cat",        category: "domestic", pic: "🐈" },
+  { gujarati: "ગાય",    pronunciation: "Gaay",       syllables: ["Gaay"],             english: "Cow",        category: "domestic", pic: "🐄" },
+  { gujarati: "ભેંસ",   pronunciation: "Bhens",      syllables: ["Bhens"],            english: "Buffalo",    category: "domestic", pic: "🐃" },
+  { gujarati: "ઘોડો",   pronunciation: "Gho-do",     syllables: ["Gho", "do"],        english: "Horse",      category: "domestic", pic: "🐎" },
+  { gujarati: "બકરો",   pronunciation: "Ba-ka-ro",   syllables: ["Ba", "ka", "ro"],   english: "Goat",       category: "domestic", pic: "🐐" },
+  { gujarati: "ઘેટું",   pronunciation: "Ghe-tu",     syllables: ["Ghe", "tu"],        english: "Sheep",      category: "domestic", pic: "🐑" },
+  { gujarati: "ઊંટ",    pronunciation: "Oont",       syllables: ["Oont"],             english: "Camel",      category: "domestic", pic: "🐪" },
+  { gujarati: "ગધેડો",  pronunciation: "Ga-dhe-do",  syllables: ["Ga", "dhe", "do"],  english: "Donkey",     category: "domestic" },
+  { gujarati: "સસલું",  pronunciation: "Sa-sa-lu",   syllables: ["Sa", "sa", "lu"],   english: "Rabbit",     category: "domestic", pic: "🐇" },
+
+  /* Wild animals (જંગલી પ્રાણીઓ) */
+  { gujarati: "સિંહ",   pronunciation: "Sinh",       syllables: ["Sinh"],             english: "Lion",       category: "wild", pic: "🦁" },
+  { gujarati: "વાઘ",    pronunciation: "Vaagh",      syllables: ["Vaagh"],            english: "Tiger",      category: "wild", pic: "🐅" },
+  { gujarati: "હાથી",   pronunciation: "Haa-thi",    syllables: ["Haa", "thi"],       english: "Elephant",   category: "wild", pic: "🐘" },
+  { gujarati: "વાંદરો", pronunciation: "Vaan-da-ro", syllables: ["Vaan", "da", "ro"], english: "Monkey",     category: "wild", pic: "🐒" },
+  { gujarati: "રીંછ",   pronunciation: "Reenchh",    syllables: ["Reenchh"],          english: "Bear",       category: "wild", pic: "🐻" },
+  { gujarati: "હરણ",    pronunciation: "Ha-ran",     syllables: ["Ha", "ran"],        english: "Deer",       category: "wild", pic: "🦌" },
+  { gujarati: "ચિત્તો",  pronunciation: "Chit-to",    syllables: ["Chit", "to"],       english: "Leopard",    category: "wild", pic: "🐆" },
+  { gujarati: "ગેંડો",   pronunciation: "Gen-do",     syllables: ["Gen", "do"],        english: "Rhinoceros", category: "wild", pic: "🦏" },
+  { gujarati: "જિરાફ",  pronunciation: "Ji-raaf",    syllables: ["Ji", "raaf"],       english: "Giraffe",    category: "wild", pic: "🦒" },
+  { gujarati: "ઝીબ્રા",  pronunciation: "Zee-bra",    syllables: ["Zee", "bra"],       english: "Zebra",      category: "wild", pic: "🦓" },
+
+  /* Birds (પક્ષીઓ) */
+  { gujarati: "મોર",    pronunciation: "Mor",        syllables: ["Mor"],              english: "Peacock",    category: "birds", pic: "🦚" }
+];
+
+/* Turn vocabulary words into game items (the same shape the letters use).
+   prefix keeps progress separate per game: "animals-dog", "fruits-mango" ... */
+function makeVocab(prefix, words) {
+  return words.map(w => {
+    if (w.syllables.join("-") !== w.pronunciation) {
+      console.warn(`Syllables of "${w.gujarati}" do not spell "${w.pronunciation}"`);
+    }
+    return {
+      id: prefix + "-" + w.english.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
+      gu: w.gujarati,
+      en: w.pronunciation,
+      syllables: w.syllables,
+      meaning: w.english,
+      category: w.category,
+      pic: w.pic
+    };
+  });
+}
+
+/* Steps of about 5 words, category by category, then mixes.
+   A leftover group smaller than 3 joins the step before it
+   (so a lone word never becomes a step of its own).            */
+function makeVocabSets(items, categories, size, mixName) {
+  size = size || 5;
+  const groups = [];
+  Object.keys(categories).forEach(cat => {
+    const inCat = items.filter(i => i.category === cat);
+    for (let i = 0; i < inCat.length; i += size) {
+      const chunk = inCat.slice(i, i + size);
+      if (chunk.length < 3 && groups.length) groups[groups.length - 1].items.push(...chunk);
+      else groups.push({ cat, n: i / size + 1, items: chunk });
+    }
+  });
+  const steps = groups.map((g, i) => ({ id: g.cat + "-" + g.n, label: "Step " + (i + 1), step: true, items: g.items }));
+  const mixes = Object.keys(categories)
+    .map(cat => ({ id: "mix-" + cat, label: "Mix: " + categories[cat].toLowerCase(), items: items.filter(i => i.category === cat) }))
+    .filter(m => m.items.length >= 4);
+  return steps.concat(mixes, [{ id: "mix-all", label: "Mix: " + mixName, items }]);
+}
+
+const ANIMAL_ITEMS = makeVocab("animals", ANIMALS);
+
 /* ---------- GAMES shown on the home screen ---------- */
 /*  color:      tile colour on the home screen (pink, blue, marigold, green)
     distractor: "random" = wrong answers picked at random
@@ -237,6 +331,25 @@ const GAMES = {
       { id: "1-50",   label: "1 to 50",   items: NUMBERS.slice(0, 50) },
       { id: "1-100",  label: "1 to 100",  items: NUMBERS }
     ]
+  },
+
+  /* Gujarati word -> child picks how to say it -> English meaning is revealed.
+     distractor "similar": at Easy/Challenge the wrong answers sound alike (Gho-do / Gen-do)
+     nextDelay: a little more time so the syllables and meaning can be heard */
+  animals: {
+    id: "animals",
+    title: "Gujarati Animals",
+    icon: "🐾",
+    color: "green",
+    preview: "કૂતરો ગાય",
+    heading: "Match the Gujarati Animal",
+    question: "How do you say this?",
+    learnTitle: "Learn Gujarati Animals",
+    doneText: "You learned Gujarati animals!",
+    distractor: "similar",
+    hindiSpeech: false,
+    nextDelay: 4200,
+    sets: makeVocabSets(ANIMAL_ITEMS, ANIMAL_CATEGORIES, 5, "all animals")
   }
 
   /* Example — add vowels later like this:

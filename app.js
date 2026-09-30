@@ -180,6 +180,8 @@ const KITE_COLORS = [
 
   /* ---------------- kite ---------------- */
   function setKite(kiteEl, text, animate) {
+    kiteEl.classList.remove("show-back");              // back to the Gujarati side
+    kiteEl.querySelector(".kite-body").classList.remove("turning");
     const glyph = kiteEl.querySelector(".kite-glyph");
     glyph.textContent = text;
     // count letters only; matras like ા િ don't make it wider
@@ -190,6 +192,29 @@ const KITE_COLORS = [
     kiteEl.style.setProperty("--kb", pair[1]);
     if (animate) replayClass(kiteEl, "enter");
   }
+  /* Words with an English meaning (animals ...) have a back side:
+     after a correct answer the kite turns over and shows 🐎 Horse.
+     Letters and numbers have no back side, so they never turn. */
+  function hasBack(item) {
+    return !!(item.meaning && !item.word);
+  }
+  function flipKite(kiteEl, item) {
+    const body = kiteEl.querySelector(".kite-body");
+    let back = body.querySelector(".kite-back");
+    if (!back) {
+      back = document.createElement("span");
+      back.className = "kite-back";
+      body.appendChild(back);
+    }
+    const len = item.meaning.length;
+    back.innerHTML =
+      (item.pic ? `<span class="kite-back-pic" aria-hidden="true">${item.pic}</span>` : "") +
+      `<span class="kite-back-en${len > 7 ? " len-long" : len > 5 ? " len-mid" : ""}">${escapeHTML(item.meaning)}</span>`;
+    if (reduceMotion) { kiteEl.classList.add("show-back"); return; }
+    replayClass(body, "turning");
+    // swap sides when the kite is edge-on (halfway through the turn)
+    setTimeout(() => { if (state.current === item) kiteEl.classList.add("show-back"); }, 300);
+  }
   function replayClass(el, cls) {
     el.classList.remove(cls);
     void el.offsetWidth; // restart CSS animation
@@ -197,7 +222,7 @@ const KITE_COLORS = [
   }
 
   function picHTML(item) {
-    if (!item.pic && !item.word) return "";
+    if (!item.pic && !item.word && !item.meaning) return "";
     let html = "";
     if (item.pic) {
       html += item.count
@@ -207,8 +232,27 @@ const KITE_COLORS = [
     if (item.word) {
       const sub = [item.wordEn, item.meaning].filter(Boolean).join(" · ");
       html += `<span class="pic-word"><span class="gu">${escapeHTML(item.word)}</span><small>${escapeHTML(sub)}</small></span>`;
+    } else if (item.meaning) {
+      // vocabulary words (animals ...): the English meaning
+      html += `<span class="pic-word"><span class="gu">${escapeHTML(item.meaning)}</span></span>`;
     }
     return html;
+  }
+
+  /* "Koo-ta-ro" as separate sound chunks, so each can light up while it is spoken */
+  function hasSyllables(item) {
+    return !!(item.syllables && item.syllables.join("-") === item.en);
+  }
+  function setLabel(el, item) {
+    if (hasSyllables(item)) {
+      el.innerHTML = item.syllables.map(s => `<span class="syl">${escapeHTML(s)}</span>`).join("-");
+    } else {
+      el.textContent = item.en;
+    }
+  }
+  function markSyllable(el, index) {
+    if (!el) return;
+    el.querySelectorAll(".syl").forEach((s, i) => s.classList.toggle("now", i === index));
   }
 
   /* ---------------- sound effects (Web Audio, no files needed) ---------------- */
@@ -253,19 +297,30 @@ const KITE_COLORS = [
   function toDevanagari(text) {
     return text.replace(/[઀-૿]/g, ch => String.fromCharCode(ch.charCodeAt(0) - 0x180));
   }
-  function utter(text, voice, lang) {
+  function utter(text, voice, lang, onstart, onend) {
     const u = new SpeechSynthesisUtterance(text);
     if (voice) u.voice = voice;
     u.lang = voice ? voice.lang : lang;
     u.rate = 0.8;
     u.pitch = 1.1;
+    if (onstart) u.onstart = onstart;
+    if (onend) u.onend = onend;
     window.speechSynthesis.speak(u);
   }
-  function speakItem(item) {
+  /* Vocabulary words: "Koo" → "ta" → "ro", then "Koo-ta-ro. Dog."
+     highlightEl: where the syllables are shown (answer button or Learn card) */
+  function speakSyllables(item, highlightEl) {
+    const en = findVoice("en");
+    item.syllables.forEach((s, i) => utter(s, en, "en-US", () => markSyllable(highlightEl, i)));
+    const full = item.en + (item.meaning ? ". " + item.meaning + "." : "");
+    utter(full, en, "en-US", () => markSyllable(highlightEl, -1), () => markSyllable(highlightEl, -1));
+  }
+  function speakItem(item, highlightEl) {
     if (!canSpeak) return;
     try {
       refreshVoices();
       window.speechSynthesis.cancel();
+      if (hasSyllables(item)) { speakSyllables(item, highlightEl); return; }
       const gu = findVoice("gu");
       if (gu) {
         utter(item.gu, gu);
@@ -524,7 +579,7 @@ const KITE_COLORS = [
     const item = state.learnList[state.learnIndex];
     const last = state.learnIndex === state.learnList.length - 1;
     setKite($("#learn-kite"), item.gu, true);
-    $("#learn-en").textContent = item.en;
+    setLabel($("#learn-en"), item);
     $("#learn-tip").hidden = !item.tip;
     $("#learn-tip").textContent = item.tip || "";
     $("#learn-pic").innerHTML = picHTML(item);
@@ -580,6 +635,12 @@ const KITE_COLORS = [
       candidates.sort((a, b) => Math.abs(a.value - item.value) - Math.abs(b.value - item.value));
       candidates = candidates.slice(0, Math.max(count * 2, 4));
     }
+    // words: at Easy / Challenge prefer answers that sound alike (Gho-do / Gen-do / Ga-dhe-do)
+    if (g.distractor === "similar" && count > 2) {
+      candidates = shuffle(candidates)
+        .sort((a, b) => soundAlike(b, item) - soundAlike(a, item))
+        .slice(0, count + 1);
+    }
     // look-alike form (ki / kee, ku / koo) is always one of the wrong answers
     if (g.distractor === "partner" && item.partner && count > 1) {
       const partner = candidates.find(i => i.id === item.partner);
@@ -594,6 +655,20 @@ const KITE_COLORS = [
     }
     const wrong = shuffle(candidates).slice(0, count - 1);
     return shuffle([item].concat(wrong));
+  }
+
+  /* how much two pronunciations look/sound alike: same start, same ending, same length */
+  function soundAlike(a, item) {
+    const sa = a.syllables || [a.en], si = item.syllables || [item.en];
+    const first = s => s[0].toLowerCase();
+    const last = s => s[s.length - 1].toLowerCase();
+    let score = 0;
+    if (first(sa)[0] === first(si)[0]) score += 2;          // G.. / G..
+    if (first(sa).slice(0, 2) === first(si).slice(0, 2)) score += 1;
+    if (sa.length > 1 && si.length > 1 && last(sa) === last(si)) score += 2;   // ..ro / ..ro
+    if (sa.length === si.length) score += 1;
+    if (a.category && a.category === item.category) score += 1;
+    return score;
   }
 
   function nextQuestion() {
@@ -627,7 +702,7 @@ const KITE_COLORS = [
       b.type = "button";
       b.id = "answer-" + idx;
       b.className = "answer c-" + colors[idx % colors.length];
-      b.textContent = choice.en;
+      setLabel(b, choice);
       if (choice.en.length > 5) b.classList.add("is-long");
       b.dataset.correct = String(choice === item);
       b.addEventListener("click", () => choose(b, choice));
@@ -659,13 +734,15 @@ const KITE_COLORS = [
       btn.classList.add("is-correct");
       $("#answers").classList.add("done");
       replayClass($("#game-kite"), "fly");
+      if (hasBack(item)) flipKite($("#game-kite"), item);
       fb.innerHTML =
         `<div class="fb-title good fb-in">🎉 Correct!</div>${pairHTML(item, "=")}` +
-        (item.pic || item.word ? `<div class="pic-row">${picHTML(item)}</div>` : "");
+        (item.pic || item.word || item.meaning ? `<div class="pic-row">${picHTML(item)}</div>` : "");
       playCorrect();
-      if (saved.sound) setTimeout(() => speakItem(item), 350);
+      if (saved.sound) setTimeout(() => speakItem(item, btn), 350);
       saveProgress("game", 1);   // saved as answered, even if the app closes now
-      state.timer = setTimeout(() => { state.qIndex++; nextQuestion(); }, state.triedWrong ? NEXT_DELAY + 900 : NEXT_DELAY);
+      const delay = (saved.sound && canSpeak && game().nextDelay) || NEXT_DELAY;
+      state.timer = setTimeout(() => { state.qIndex++; nextQuestion(); }, state.triedWrong ? delay + 900 : delay);
     } else {
       btn.classList.add("is-wrong");
       btn.disabled = true;
@@ -741,7 +818,8 @@ const KITE_COLORS = [
       const chip = document.createElement("button");
       chip.type = "button";
       chip.className = "practice-chip";
-      chip.innerHTML = `<span class="gu">${escapeHTML(item.gu)}</span> → ${escapeHTML(item.en)} <span aria-hidden="true">🔊</span>`;
+      const meaning = item.meaning && !item.word ? " · " + escapeHTML(item.meaning) : "";
+      chip.innerHTML = `<span class="gu">${escapeHTML(item.gu)}</span> → ${escapeHTML(item.en)}${meaning} <span aria-hidden="true">🔊</span>`;
       chip.addEventListener("click", () => speakItem(item));
       list.appendChild(chip);
     });
@@ -797,7 +875,7 @@ const KITE_COLORS = [
       section.innerHTML =
         `<div class="mastery-head"><h3>${g.icon} ${escapeHTML(g.title)}</h3>` +
         `<span class="mastery-best">${played ? "" : "Not played yet"}</span></div>` +
-        `<div class="mastery-grid">${cells}</div>`;
+        `<div class="mastery-grid${allItems(g).some(i => i.syllables) ? " is-words" : ""}">${cells}</div>`;
       wrap.appendChild(section);
     });
     $("#sum-stars").textContent = saved.totalStars;
@@ -903,7 +981,7 @@ const KITE_COLORS = [
   // never quiz a letter the child has not seen: show new ones first
   $("#btn-play").addEventListener("click", playCurrent);
 
-  $("#btn-learn-listen").addEventListener("click", () => speakItem(state.learnList[state.learnIndex]));
+  $("#btn-learn-listen").addEventListener("click", () => speakItem(state.learnList[state.learnIndex], $("#learn-en")));
   $("#btn-learn-back").addEventListener("click", () => {
     if (state.learnIndex > 0) { state.learnIndex--; renderLearn(); }
   });

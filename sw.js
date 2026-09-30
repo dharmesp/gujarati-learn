@@ -9,7 +9,7 @@
    is opened. You don't need to change anything in this file.
    (If you add a new file, add it to APP_FILES below.)
    ========================================================================= */
-const CACHE = "gujarati-match-v1";
+const CACHE = "gujarati-match-v2";
 
 const APP_FILES = [
   "./",
